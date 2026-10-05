@@ -1,4 +1,4 @@
-# Agent Usage Bar
+# Agent usage monitor
 
 A tiny native macOS menu bar app that shows your **Claude** and **Codex** usage limits and service status at a glance.
 
@@ -51,8 +51,8 @@ You can switch modes at any time with the **Show usage limits** toggle at the bo
 ## How it works
 
 - **Usage limits:** Claude is polled at most every 3 minutes, because its usage endpoint rate-limits aggressively. It backs off to 5–30 minutes after a `429` and keeps showing the last good numbers. Codex and the status pages refresh every 60 seconds, after waking from sleep, and when you open the panel.
-- **Launch at login:** a user LaunchAgent at `~/Library/LaunchAgents/io.github.agent-usage-bar.plist`.
-- **The app** is installed to `~/Applications/AgentUsageBar.app`, ad-hoc signed, and runs without a Dock icon.
+- **Launch at login:** a user LaunchAgent at `~/Library/LaunchAgents/io.github.agent-usage-monitor.plist`.
+- **The app** is installed to `~/Applications/AgentUsageMonitor.app`, ad-hoc signed, and runs without a Dock icon.
 
 ## Troubleshooting
 

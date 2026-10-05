@@ -21,7 +21,7 @@ struct ServiceStatus {
 /// Reads a Statuspage-style summary.json and keeps only the components we care about.
 func fetchStatus(_ base: String, components wanted: [String]) async -> ServiceStatus? {
     var req = URLRequest(url: URL(string: "\(base)/api/v2/summary.json")!)
-    req.setValue("Mozilla/5.0 (Macintosh) AgentUsageBar", forHTTPHeaderField: "User-Agent")
+    req.setValue("Mozilla/5.0 (Macintosh) AgentUsageMonitor", forHTTPHeaderField: "User-Agent")
     req.timeoutInterval = 20
     guard let j = try? await fetchJSON(req) else { return nil }
     let st = j["status"] as? [String: Any]

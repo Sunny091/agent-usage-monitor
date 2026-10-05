@@ -1,5 +1,5 @@
 #!/bin/zsh
-# One-click installer for Agent Usage Bar.
+# One-click installer for Agent usage monitor.
 # Builds the app from source, installs it to ~/Applications and starts it at every login.
 #
 #   ./install.sh                # asks whether to enable usage limits
@@ -8,8 +8,8 @@
 set -e
 cd "$(dirname "$0")"
 
-BUNDLE_ID="io.github.agent-usage-bar"
-APP="$HOME/Applications/AgentUsageBar.app"
+BUNDLE_ID="io.github.agent-usage-monitor"
+APP="$HOME/Applications/AgentUsageMonitor.app"
 PLIST="$HOME/Library/LaunchAgents/$BUNDLE_ID.plist"
 
 bold() { print -P "%B$1%b"; }
@@ -47,22 +47,30 @@ else
   defaults write "$BUNDLE_ID" usageLimitsEnabled -bool NO
 fi
 
+# --- Remove the old "AgentUsageBar" install, if any ---------------------------
+for OLD in io.github.agent-usage-bar local.agent-usage-bar; do
+  launchctl bootout "gui/$(id -u)/$OLD" 2>/dev/null || true
+  rm -f "$HOME/Library/LaunchAgents/$OLD.plist"
+done
+rm -rf "$HOME/Applications/AgentUsageBar.app"
+
 # --- Build --------------------------------------------------------------------
 bold "Building…"
 mkdir -p build
-xcrun swiftc -O Sources/main.swift -o build/AgentUsageBar -framework AppKit -framework SwiftUI
+xcrun swiftc -O Sources/main.swift -o build/AgentUsageMonitor -framework AppKit -framework SwiftUI
 
 # --- Install ------------------------------------------------------------------
 bold "Installing to $APP"
 mkdir -p "$APP/Contents/MacOS"
-cp build/AgentUsageBar "$APP/Contents/MacOS/AgentUsageBar"
+cp build/AgentUsageMonitor "$APP/Contents/MacOS/AgentUsageMonitor"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
-  <key>CFBundleName</key><string>AgentUsageBar</string>
-  <key>CFBundleExecutable</key><string>AgentUsageBar</string>
+  <key>CFBundleName</key><string>AgentUsageMonitor</string>
+  <key>CFBundleDisplayName</key><string>Agent usage monitor</string>
+  <key>CFBundleExecutable</key><string>AgentUsageMonitor</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundleVersion</key><string>1</string>
@@ -79,7 +87,7 @@ cat > "$PLIST" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>$BUNDLE_ID</string>
-  <key>ProgramArguments</key><array><string>$APP/Contents/MacOS/AgentUsageBar</string></array>
+  <key>ProgramArguments</key><array><string>$APP/Contents/MacOS/AgentUsageMonitor</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ProcessType</key><string>Interactive</string>
