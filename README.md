@@ -17,8 +17,8 @@ Claude ▬▬░░ 2%    Codex ▬░░░ 7%
 Requirements: macOS 14 or later, plus Xcode Command Line Tools. The installer offers to install the Command Line Tools if they're missing.
 
 ```bash
-git clone https://github.com/Sunny091/agent-usage-bar.git
-cd agent-usage-bar
+git clone https://github.com/Sunny091/agent-usage-monitor.git
+cd agent-usage-monitor
 ./install.sh
 ```
 
