@@ -195,6 +195,23 @@ final class UsageStore: ObservableObject {
     @Published var codexStatus: ServiceStatus?
     @Published var lastUpdated: Date?
     @Published var loading = false
+    @Published var showClaude = UserDefaults.standard.object(forKey: "showClaude") as? Bool ?? true {
+        didSet {
+            guard showClaude != oldValue else { return }
+            UserDefaults.standard.set(showClaude, forKey: "showClaude")
+            restartRefresh()
+        }
+    }
+    @Published var showCodex = UserDefaults.standard.object(forKey: "showCodex") as? Bool ?? true {
+        didSet {
+            guard showCodex != oldValue else { return }
+            UserDefaults.standard.set(showCodex, forKey: "showCodex")
+            restartRefresh()
+        }
+    }
+    var visibleAgentNames: [String] {
+        (showClaude ? ["Claude"] : []) + (showCodex ? ["Codex"] : [])
+    }
     /// Opt-in. When false the app never reads any local login/credential – only public status pages are fetched.
     @Published var limitsEnabled: Bool = UserDefaults.standard.bool(forKey: "usageLimitsEnabled") {
         didSet {
@@ -202,8 +219,7 @@ final class UsageStore: ObservableObject {
             claude = nil; codex = nil
             claudeLastGood = nil; claudeLastGoodAt = nil
             claudeNextFetch = .distantPast; claudeBackoff = 0
-            onChange?()
-            refresh()
+            restartRefresh()
         }
     }
     var onChange: (() -> Void)?
@@ -214,20 +230,34 @@ final class UsageStore: ObservableObject {
     private var claudeBackoff: TimeInterval = 0
     private var claudeLastGood: ProviderUsage?
     private var claudeLastGoodAt: Date?
+    private var refreshTask: Task<Void, Never>?
+
+    private func restartRefresh() {
+        // A settings change must not be dropped while an old request is in flight.
+        // Cancelled tasks cannot restore hidden agents or data from the previous mode.
+        refreshTask?.cancel()
+        loading = false
+        lastUpdated = nil
+        onChange?()
+        refresh()
+    }
 
     func refresh() {
-        guard !loading else { return }
+        guard !loading, showClaude || showCodex else { return }
         loading = true
         let enabled = limitsEnabled
-        let fetchClaudeNow = enabled && Date() >= claudeNextFetch
-        Task {
+        let includeClaude = showClaude, includeCodex = showCodex
+        let fetchClaudeNow = includeClaude && enabled && Date() >= claudeNextFetch
+        refreshTask = Task {
+            guard !Task.isCancelled else { return }
             async let c: ProviderUsage? = fetchClaudeNow ? fetchClaude() : nil
-            async let x: ProviderUsage? = enabled ? fetchCodex() : nil
-            async let cs = fetchStatus("https://status.claude.com", components: ["Claude Code", "Claude API", "claude.ai"])
-            async let xs = fetchStatus("https://status.openai.com", components: ["Codex", "Responses", "Login"])
+            async let x: ProviderUsage? = includeCodex && enabled ? fetchCodex() : nil
+            async let cs: ServiceStatus? = includeClaude ? fetchStatus("https://status.claude.com", components: ["Claude Code", "Claude API", "claude.ai"]) : nil
+            async let xs: ServiceStatus? = includeCodex ? fetchStatus("https://status.openai.com", components: ["Codex", "Responses", "Login"]) : nil
             let (cr, xr, csr, xsr) = await (c, x, cs, xs)
+            guard !Task.isCancelled else { return }
             if let cr { self.applyClaude(cr) }
-            if enabled { self.codex = xr }
+            if includeCodex && enabled { self.codex = xr }
             if let csr { self.claudeStatus = csr }
             if let xsr { self.codexStatus = xsr }
             self.lastUpdated = Date()
@@ -507,15 +537,94 @@ struct FlowChips: View {
     }
 }
 
+struct AgentSettingsRow: View {
+    let name: String
+    let icon: String
+    let tint: Color
+    @Binding var isVisible: Bool
+
+    var body: some View {
+        Toggle(isOn: $isVisible) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 34, height: 34)
+                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(name)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(isVisible ? "Shown in menu bar" : "Hidden from menu bar")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .tint(tint)
+        .padding(12)
+        .background(Color.primary.opacity(isVisible ? 0.045 : 0.02), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.primary.opacity(0.06))
+        }
+        .accessibilityLabel("Show \(name)")
+    }
+}
+
+struct AgentSettingsView: View {
+    @ObservedObject var store: UsageStore
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Visible agents")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Keep your menu bar focused.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(Color.primary.opacity(0.06), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close agent settings")
+                .help("Close settings")
+            }
+
+            VStack(spacing: 8) {
+                AgentSettingsRow(name: "Claude", icon: "sparkle", tint: claudeTint, isVisible: $store.showClaude)
+                AgentSettingsRow(name: "Codex", icon: "chevron.left.forwardslash.chevron.right", tint: codexTint, isVisible: $store.showCodex)
+            }
+
+            Label("Saved automatically on this Mac", systemImage: "checkmark.circle")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .frame(width: 280)
+    }
+}
+
 struct PopoverView: View {
     @ObservedObject var store: UsageStore
+    @State private var showingAgentSettings = false
 
     var body: some View {
         VStack(spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Usage Limits").font(.system(size: 15, weight: .bold))
-                    Text(store.lastUpdated.map { "Updated \($0.formatted(date: .omitted, time: .shortened)) · auto every 60s" } ?? "Fetching…")
+                    Text(store.visibleAgentNames.isEmpty ? "Choose an agent in settings" : (store.lastUpdated.map { "Updated \($0.formatted(date: .omitted, time: .shortened)) · auto every 60s" } ?? "Fetching…"))
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                 }
@@ -529,11 +638,36 @@ struct PopoverView: View {
                         .background(Circle().fill(Color.primary.opacity(0.07)))
                 }
                 .buttonStyle(.plain)
+                .disabled(store.visibleAgentNames.isEmpty)
                 .help("Refresh now")
+                Button {
+                    showingAgentSettings.toggle()
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.primary.opacity(showingAgentSettings ? 0.14 : 0.07)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Agent settings")
+                .help("Choose which agents to show")
+                .popover(isPresented: $showingAgentSettings) {
+                    AgentSettingsView(store: store) { showingAgentSettings = false }
+                }
             }
 
-            ProviderCard(store: store, name: "Claude", icon: "sparkle", tint: claudeTint, usage: store.claude, status: store.claudeStatus)
-            ProviderCard(store: store, name: "Codex", icon: "chevron.left.forwardslash.chevron.right", tint: codexTint, usage: store.codex, status: store.codexStatus)
+            if store.showClaude {
+                ProviderCard(store: store, name: "Claude", icon: "sparkle", tint: claudeTint, usage: store.claude, status: store.claudeStatus)
+            }
+            if store.showCodex {
+                ProviderCard(store: store, name: "Codex", icon: "chevron.left.forwardslash.chevron.right", tint: codexTint, usage: store.codex, status: store.codexStatus)
+            }
+            if store.visibleAgentNames.isEmpty {
+                Text("No agents selected. Use the settings menu to show an agent’s usage and status.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             VStack(alignment: .leading, spacing: 3) {
                 Toggle(isOn: $store.limitsEnabled) {
@@ -541,7 +675,7 @@ struct PopoverView: View {
                 }
                 .toggleStyle(.switch)
                 .controlSize(.mini)
-                Text("Reads the login that Claude Code / Codex already saved on this Mac and sends it only to Anthropic / OpenAI. Nothing is stored or shared.")
+                Text("Reads saved logins only for selected agents and sends them only to their official usage endpoints. Credentials are never stored or shared elsewhere.")
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -577,8 +711,16 @@ struct PopoverView: View {
 // MARK: - Menu bar icon (drawn)
 
 /// Draws "<name>" followed by up to two stacked mini bars with percentages.
-func menuBarImage(claude: ProviderUsage?, codex: ProviderUsage?, claudeStatus: ServiceStatus?, codexStatus: ServiceStatus?, limits: Bool) -> NSImage {
-    let groups: [(String, ProviderUsage?)] = [("Claude", claude), ("Codex", codex)]
+func menuBarImage(claude: ProviderUsage?, codex: ProviderUsage?, claudeStatus: ServiceStatus?, codexStatus: ServiceStatus?, limits: Bool, showClaude: Bool, showCodex: Bool) -> NSImage {
+    var groups: [(String, ProviderUsage?)] = []
+    if showClaude { groups.append(("Claude", claude)) }
+    if showCodex { groups.append(("Codex", codex)) }
+    if groups.isEmpty {
+        // Keep a menu bar entry so settings remain reachable with every agent hidden.
+        let image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Agent usage monitor settings")!
+        image.isTemplate = true
+        return image
+    }
     let alerts: [String: String] = ["Claude": claudeStatus?.indicator ?? "unknown", "Codex": codexStatus?.indicator ?? "unknown"]
     let nameFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
     let pctFont = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .semibold)
@@ -670,7 +812,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let b = statusItem.button {
             b.action = #selector(togglePanel)
             b.target = self
-            b.toolTip = "Claude & Codex usage — top bar = 5-hour, bottom bar = weekly"
         }
         buildPanel()
 
@@ -723,8 +864,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func updateIcon() {
-        statusItem.button?.image = menuBarImage(claude: store.claude, codex: store.codex, claudeStatus: store.claudeStatus, codexStatus: store.codexStatus, limits: store.limitsEnabled)
+        statusItem.button?.image = menuBarImage(claude: store.claude, codex: store.codex, claudeStatus: store.claudeStatus, codexStatus: store.codexStatus, limits: store.limitsEnabled, showClaude: store.showClaude, showCodex: store.showCodex)
         statusItem.button?.title = ""
+        let names = store.visibleAgentNames.joined(separator: " & ")
+        statusItem.button?.toolTip = names.isEmpty ? "Agent usage monitor — choose agents in settings" :
+            (store.limitsEnabled ? "\(names) usage — top bar = 5-hour, bottom bar = weekly" : "\(names) service status")
     }
 
     /// Place the panel so its top edge touches the bottom of the menu bar, left-aligned to the status item.
