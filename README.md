@@ -34,7 +34,7 @@ To update, run `git pull && ./install.sh`. To uninstall, run `./uninstall.sh`.
 
 ## Choose which agents appear
 
-Click the menu bar app, then the **gear icon** beside Refresh. Under **Agents to show**, click an agent to toggle its checkmark. For a Codex-only setup, uncheck **Claude** and leave **Codex** checked. Changes apply immediately to both the menu bar and the detail panel, and persist after restarting or reinstalling the app.
+Click the menu bar app, then the **gear icon** beside Refresh. The **Visible agents** popover has a switch for each agent, with a label showing whether it appears in the menu bar. For a Codex-only setup, turn **Claude** off and leave **Codex** on. Changes apply immediately to both the menu bar and the detail panel, and persist after restarting or reinstalling the app.
 
 Both agents are shown by default. Hidden agents are no longer polled, and their saved logins are not read for new requests. If you turn off both agents, a settings icon stays in the menu bar so you can turn them back on.
 

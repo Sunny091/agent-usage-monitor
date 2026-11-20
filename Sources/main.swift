@@ -537,8 +537,87 @@ struct FlowChips: View {
     }
 }
 
+struct AgentSettingsRow: View {
+    let name: String
+    let icon: String
+    let tint: Color
+    @Binding var isVisible: Bool
+
+    var body: some View {
+        Toggle(isOn: $isVisible) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 34, height: 34)
+                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(name)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(isVisible ? "Shown in menu bar" : "Hidden from menu bar")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .tint(tint)
+        .padding(12)
+        .background(Color.primary.opacity(isVisible ? 0.045 : 0.02), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.primary.opacity(0.06))
+        }
+        .accessibilityLabel("Show \(name)")
+    }
+}
+
+struct AgentSettingsView: View {
+    @ObservedObject var store: UsageStore
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Visible agents")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Keep your menu bar focused.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .background(Color.primary.opacity(0.06), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close agent settings")
+                .help("Close settings")
+            }
+
+            VStack(spacing: 8) {
+                AgentSettingsRow(name: "Claude", icon: "sparkle", tint: claudeTint, isVisible: $store.showClaude)
+                AgentSettingsRow(name: "Codex", icon: "chevron.left.forwardslash.chevron.right", tint: codexTint, isVisible: $store.showCodex)
+            }
+
+            Label("Saved automatically on this Mac", systemImage: "checkmark.circle")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .frame(width: 280)
+    }
+}
+
 struct PopoverView: View {
     @ObservedObject var store: UsageStore
+    @State private var showingAgentSettings = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -561,22 +640,20 @@ struct PopoverView: View {
                 .buttonStyle(.plain)
                 .disabled(store.visibleAgentNames.isEmpty)
                 .help("Refresh now")
-                Menu {
-                    Section("Agents to show") {
-                        Toggle("Claude", isOn: $store.showClaude)
-                        Toggle("Codex", isOn: $store.showCodex)
-                    }
+                Button {
+                    showingAgentSettings.toggle()
                 } label: {
                     Image(systemName: "gearshape")
                         .font(.system(size: 12, weight: .semibold))
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.primary.opacity(0.07)))
+                        .background(Circle().fill(Color.primary.opacity(showingAgentSettings ? 0.14 : 0.07)))
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
+                .buttonStyle(.plain)
                 .accessibilityLabel("Agent settings")
                 .help("Choose which agents to show")
+                .popover(isPresented: $showingAgentSettings) {
+                    AgentSettingsView(store: store) { showingAgentSettings = false }
+                }
             }
 
             if store.showClaude {
