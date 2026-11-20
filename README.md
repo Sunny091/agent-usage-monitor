@@ -9,6 +9,7 @@ Claude ▬▬░░ 2%    Codex ▬░░░ 7%
 
 - **Menu bar:** each service gets mini bars. The top bar is the 5-hour session limit and the bottom bar is the weekly limit. Green means fine, orange is 70% or more, red is 90% or more. A small dot appears next to a name when that service is having an incident.
 - **Click** to open a panel with progress bars, percent used and left, reset countdowns, plan badges, and live status from status.claude.com and status.openai.com.
+- **Choose your agents:** open the panel’s gear menu to show Claude, Codex, or both. Your selection is saved on this Mac.
 - **Starts automatically** at login.
 - **No dependencies:** a single Swift file, compiled on your machine.
 
@@ -30,6 +31,12 @@ The installer asks whether to enable usage limits (see [Privacy](#privacy)). You
 ```
 
 To update, run `git pull && ./install.sh`. To uninstall, run `./uninstall.sh`.
+
+## Choose which agents appear
+
+Click the menu bar app, then the **gear icon** beside Refresh. Under **Agents to show**, click an agent to toggle its checkmark. For a Codex-only setup, uncheck **Claude** and leave **Codex** checked. Changes apply immediately to both the menu bar and the detail panel, and persist after restarting or reinstalling the app.
+
+Both agents are shown by default. Hidden agents are no longer polled, and their saved logins are not read for new requests. If you turn off both agents, a settings icon stays in the menu bar so you can turn them back on.
 
 ## Privacy
 
